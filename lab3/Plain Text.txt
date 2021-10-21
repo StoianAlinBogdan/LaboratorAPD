@@ -1,0 +1,78 @@
+Recapitulare:
+Sender-ul se deblocheaza din rutina de transmisie blocanta atunci cand termina de scris in buffer-ul de transmisie. Receiver-ul se blocheaza pana cand termina de citit tot ce trebuia receptionat.
+Mesajele transmise sunt omogene (fiecare element are acelasi tip de date in cadrul aceluiasi mesaj) - mesajele sunt construite din date, tip  si numar de date.
+Conditiile care trebuiesc respectate pentru comunicatii individuale: Doua procese pot comunica numai daca fac parte din acelasi grup de comunicatie (lucreaza cu acelasi element de tip comunicator). Sender-ul trebuie sa cunoasca destinatia, iar receiver-ul trebuie sa cunoasca sursa. Sender-ul trebuie sa stabileasca o eticheta logica (tag-ul), iar receiver-ul trebuie sa cunoasca tag-ul mesajului pe care il asteapta. (scapari: MPI_ANY_SOURCE, MPY_ANY_TAG)
+
+Exista doua tipuri de comunicatie: proprii si improprii. Din categoria celor improprii fac parte mesajele de organizare. Cele improprii includ functii de pauza, de stop, etc. Cele proprii: in functie de rolurile pe care le joaca fiecare proces pe grup, comunicatiile colective sunt de forma: unul-la-toti, toti-la-unul, toti-la-toti. 
+Din punctul de vedere al mesajului, comunicarea poate fi clasata ca comunicare personalizata sau nepersonalizata. Personalizat: mesaj specific care trebuie distribuit in functie de rang, iar nepersonalizat trebuie mesaj care trebuie trimis la toate procesele de acelasi rang. 
+Comunicatiile individuale si colective nu se completeaza reciproc (o comunicatie de tip 1-n nu completeaza o comunicatie de tip 1-1)
+Comunicatiile colective sunt in general blocante. Noile versiuni de MPI permit si comunicatii colective neblocante (nu le folosim).
+Noi trebuie ca la nivel logic sa nu intercalam comunicatii individuale cu comunicatii colective.
+Comunicatiile colective sunt apelate intotdeauna de aceeasi functie de toti participatii din grup. De evitat if(rank != val) { MPI_collective(); }, din cauza ca intr-o comunicatie colectiva participa TOATE procesele care fac parte din grup, iar astfel exista cel putin un proces cu identificatorul "val" care nu face nimic. Toate procesele executa aceeasi rutina.
+
+Tipuri de comunicatie colective:
+- bariera: o comunicatie improprie, rolul functiei este de sincronizare a proceselor din colectia noastra de lucru. La nivel conceptual, functia MPI_collective() are un callback in app manager. Cand un proces invoca un MPI_Barrier() cu acel comunicator, are loc un callback in manager. In manager, se verifica daca exista o rutina de tip "wait" care include procesul apelant.  Daca da, procesul se adauga intr-o tabela interna, unde i se asigneaza si nr de ordine. Apoi, manager-ul se uita la numarul de ordine si verifica daca este egal cu numarul total de procese. Cand numarul de ordine a ultimului proces ajuns este egal cu numarul de procese, atunci manager-ul transmite inapoi semnal catre fiecare proces din tabela.
+- broadcast: comunicatie colectiva de tip 1:n, ne personalizata. Avem un rang numit "radacina" care trebuie sa distribuie acelasi mesaj la toate celelalte procese din acelasi grup, inclusiv, conceptual, lui insusi. Din perspectiva nod-ului radacina, este echivalent cu N send-uri, iar de la receiver, e ca si cum am apela un singur receive cu identificatorul radacinii. Radacina trimite adresa de inceput a unui bloc de memorie care contine mesajul de transmis, numarul de elemente din buffer, apoi un datatype. Contine si valoarea nod-ului radacina care initializeaza comunicatia. Mai contine si identificatorul comunicatorului prin care se realizeaza comunicatia efectiva.
+- scatter: comunicare de tip 1:n. Rolul este de a imparti mesajul in bucati egale si transmiterea fiecarei partitii la fiecare proces din grupul de lucru. Este o rutina 1:n personalizata. Fiecare proces, *in ordinea rang-ului*, primesc partitiile mesajului. MPI_SCATTER(). Parametri: primii trei, sendbuf, sendcount, sendtype, sunt relevanti doar pentru radacina. Ceilalti sunt interpretati de catre toate procesele din grup. Sendcount reprezinta numarul de intrari din buffer care va fi trimis la fiecare proces. Fiecare proces, inclusiv nodul radacina, are nevoie de un apel de recvbuf(). Recvcount ofera numarul de elemente care se asteapta a fi primite de la radacina. (trebuie sa fie egal cu sendcount). 
+- gather: comunicatie de tip n:1, nu conteaza radacina comunicatiei (rang-ul colector), toate mesajele trimit partitia proprie catre radacina, deci este nepersonalizata. Spre deosebire de scatter, sendbuf, sendcount, sendtype sunt interpretati de toate procesele din grup, iar recvbuf recvcount, recvtype sunt interpretate doar de root. root si comm sunt parametri de intrare procesati de toate rang-urile. Gather, astfel, reconstruieste partitiile raspandite intr-un buffer colector, in ordinea rangurilor. 
+
+
+Topologiile in MPI pot fi atat fizice, cat si logice. Cele fizice influenteaza mediul de comunicare (MPI_COMM_WORLD). Cele logice optimizeaza transferul de mesaje intre procese. Fiecare topologie creata la nivel logic este "derivata" dintr-un comunicator oarecare (in sensul de la OOP). Noi vom considera comunicatorul acesta comunicatorul implicit. Astfel, prin derivare, sau "specializare", sa obtinem un nou comunicator care sa modeleze topologia nou creata. Astfel, dupa ce am creat comunicatorul, putem sa-l folosim in comunicatii individuale sau colective.
+Daca intr-un comunicator nu exista o cale intre doua procese, se cauta in comunicatorul parinte, din care este derivat comunicatorul curent. Daca esueaza si acolo, atunci parintele cauta o cale intre cele doua procese in comunicatorul parinte lui, iar daca nu exista nici acolo, atunci se poate ca comunicarea sa esueze.
+Folosim doua topologii logice in laborator: carteziane si graf complet.
+
+
+Pentru crearea unei topologii carteziene: MPI_CART_CREATE(). O toplogie carteziana este descrisa de un numar de dimensiuni, de cate elemente vreau sa distribui pe fiecare dimensiune, si o ciclicitate (periodicitate) a elementelor pe dimensiunile respective. Primul parametru este comunicatorul pe care il specializam.
+exemplu:
+2dimensiuni -> ndim = 2. Avem la dispozitie 9 procese. Construim o plasa de dimensiune 3x3.
+dims[2] = {3, 3} - 3 linii, 3 procese.
+nu dorim ciclitate -> periods[2] = {0, 0} - valori false
+MPI_CART_CREATE()... 
+Completam rang-uri mai intai pe coloane, apoi pe linii
+0 - 1 - 2
+|   |   |
+3 - 4 - 5
+|   |   |
+6 - 7 - 8
+fara ciclitate -> s-a terminat creearea.
+Canalul de comunicatie admis pe comunicatia este inseamna doar un vecin direct, ori pe coloana ori pe linie. 
+Daca dorim ciclitate (liniile sa fie circulare, de exemplu):
+periods[2] = {1, 0} - pentru linii calculam "vecinul de jos". Deci, toate nodurile de pe prima linie vor fi vecini cu nodurile de pe ultima linie, iar cei de pe ultima linie vor avea vecini *in jos* pe cei de pe prima linie.
+   |   |   |
+ - 0 - 1 - 2 -
+ | |   |   | |
+ | 3 - 4 - 5 | 
+ | |   |   | |
+ - 6 - 7 - 8 -
+   |   |   |
+   
+topologie de tip graf:
+exemplu:
+|--------|
+0 -  1 - 4 -5
+|        |
+2 - 3    6
+index[0] = gradul in graful suport a nodului 0
+index[i] = index[i-1] + gradul nodului i.
+edges[0:index[0]-1] = vector de vecini pentru 0
+edges[index[i-1]:index[i]-1] = vecinii nodului i.
+pentru graful nostru:
+0: 1, 2, 4 
+1: 0, 2, 4
+2: 0, 1, 3
+3: 2
+4: 0, 1, 5, 6
+5: 4
+6: 4 (liste de adiacenta - astea sunt rang-uri) 
+vectorul de indecsi: index[] = {3, 6, 9, 10, 14, 15, 16}
+muchii: edges[] = {1, 2, 4, 0, 2, 4, 0, 1, 3, 2, 0, 1, 5, 6, 4, 4}
+functii de interes pe topologii MPI: MPI_NEIGHBORS_COUNT, MPI_GRAPH_NEIGHBORS
+MPI_COMM_FREE(MPI_Comm * ..) - distruge topologia indicata de parametru.
+
+
+
+
+
+
+
+

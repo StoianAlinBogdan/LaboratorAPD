@@ -1,0 +1,28 @@
+Memorie distribuita = memorie in comun pentru realizarea unui scop pentru mai multe (un cluster de) calculatoare.
+Fiecare masina are propria memorie care nu este partajata cu restul de masini din sistem.
+Cand procesele au nevoie de valori stocate in variabile de la alte procese, se face un schimb de mesaje.
+
+openMPI permite, la nivel logic, dictarea organizarii topologiei proceselor.
+Pentru n procese, MPI asigneaza ranguri proceselor cu valori intre 0 si n-1, dar procesul cu numarul 0, fata de MP, nu are nici o semnificatie suplimentara.
+in MPI, exista doua tipuri de topologii: - topologie fizica (sau de baza), care inseamna cum e organizata masina de calcul la nivel de unitati de procesare. Ex: un calculator multicore, care are o topologie de tip graf complet (fiecare proces care lucreaza pe acea masina poate comunica direct cu orice alt proces). Alte exemple: retele interconectate cu hub-uri (tip stea), cu switch-uri (graf complet), connection machine 5 (CM5 - topologie de tip arbore gras)
+	- topologie virtuala, care permite, deasupra celei de baza, sa modelam niste specializari in asa fel incat sa simulam alte topologii.
+
+in MPI, aplicatia nu mai este un singur proces cu propriile thread-uri, ci avem nevoie de un manager de procese.
+mpirun -np X(nrprocese) nume.cpp <- face un call catre App Manager, spawneaza un proces numit "orte_mgr", iar toate procesele noastre vor fi copii pentru procesul asta. Apoi, App Manager-ul va lansa de X ori apeluri de tip spawn (similar cu fork + exec) pentru aplicatia noastra.
+
+La nivel de proces, in functia principala a aplicatiei, aplicatia va rula MPI_Init implicit, iar la final, MPI_Finalize()
+In regiunile secventiale, din afara blocului init - finalize, procesele sunt independente. 
+In blocul dintre init si finalize, exista o regiune "pseudo paralela", putem face operatii colective si efectua operatiile necesare. 
+MPI_init(argc, argv) transmite argc si argv + PID-ul de la sistemul de operare la orte_manager. 
+Astfel, in orte_manager, raman urmatoarele, de la fiecare aplicatie: numele aplicatiei, PID, host, grupul din care face parte procesul, si rang-ul logic
+Lucrurile astea sunt pasate ca raspuns la apelul de functie MPI_Init(). 
+Apoi, in finalize, procesul paraseste grupul, se sterge intrarea lui din orte_mgr, iar raspunsul este tip adevarat/fals. 
+Comunicatiile din MPI se petrec oarecum similar cu protocolul TCP, dar permite comunicatii blocante si neblocante. De fapt, in afara sistemului de handshake tip TCP, nu prea exista nici o alta verificare ulterioara sau asigurare a calitatii serviciilor.
+
+Pentru comunicatii blocante, MPI_Send si MPI_RECV
+
+in loc de source, dest si tag, putem folosi MPI_ANY_SOURCE in locul parametrului sau MPI_ANY_TAG. Valorile relevante pentru recv sunt in structura "status", cu numele status.MPI_SOURCE si status.MPI_TAG
+
+Pentru comunicatii neblocante, MPI_Isend, MPI_IRecv
+
+Existe rutine de debugging, anume MPI_Wait si MPI_Test

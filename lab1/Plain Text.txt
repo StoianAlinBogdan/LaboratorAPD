@@ -1,0 +1,72 @@
+Proces vs Thread
+Thread este o multime de instructiuni care se executa secvential
+Procesele nu pot avea memorie partajata (pot comunica prin pipe-uri, socket-uri sau fisiere)
+
+e nevoie de gcc 4+
+pentru openmp: gcc -fopenmp
+pentru MPI: openMPI vers. 1.10+.
+
+pachete necesare:
+openmpi-runtime
+openmpi-dev
+
+
+task = un set de procesari identice sau diferite care se pot aplica pe array-uri independente de regiuni de memorie. 
+OpenMP permite asignarea de task-uri si distribuirea acestora pe fire de executie.
+
+cand lucram cu memorie partajata trebuie grija mare la operatii de tip read/write. Mecanismele de preventie de data leaks (situatii in care doua thread-uri incearca sa scrie, respectiv sa citeasca o variabila in acelasi timp) exista in openMP, dar trebuie apelate programatic.
+In openMP, exista regiuni secventiale, respectiv regiuni paralele.
+Procesul de fork si join vor fi efectuate prin directive si apeluri de functii.
+
+#pragma omp construct [clause] [clause]
+
+constructori: parallel; parallel for;
+
+bloc structurat de cod = acel bloc de cod care are un singur punct logic de intrare si respectiv un singur punct logic de iesire.
+variabilele din regiunile paralele sunt intotdeauna private.
+variabilele din regiunile secventiale sunt disponibile oricarei regiuni de cod.
+
+constructori comuni:
+-parallel
+	if <- conditia pentru crearea regiunii paralele
+	private <- transforma variabila partajata in variabila privata. firstprivate face acelasi lucru, dar face si initializarea valorilor din lista (copie si valoarea)
+	shared <- ramane partajat pentru toate firele de executie
+	default <- shared, none; cum se comporta thread-ul fata de variabila daca nu folosim private, firstprivate sau shared
+	reduction <- chestii
+	num_threads <- controlam cate fire de executie se lanseaza pe fiecare regiune paralela in parte.
+
+	
+d1 ... t1
+d2 ... t2
+
+t1 = (d1/d2)^O * t2;, unde O este ordinul de complexitate.
+timpul de aplicatie secvential este banal de masurat (start .... stop)
+la paralel, Tpar = Tsetup(de exemplu, timpul necesar pentru creearea firelor de executie si oprirea lor) + Tcpe(calcul paralel efectiv) + Tcom(comunicatie)
+Tcpe >>>> Tsetup + Tcom pentru a fi relevant pentru multithreading.
+
+definire vs initializare de variabila;
+
+feluri de definire a numarului de fire de executie (in ordinea crescatoare a "puterii"):
+0: IMPLICIT nrCore = nrThread-uri.
+1: variabila de mediu OMP_NUM_THREADS. Valoarea de aici suprascrie valoarea implicita. 
+2: functia omp_set_num_threads(x) - afecteaza toate regiunile paralele create dupa apelul de functie.
+3: clauza num_threads(x)
+
+paralelism la nivel de bucla:
+#pragma omp parallel for	
+	for(int i....)
+pentru for, mai exista constructorul "nowait" si "schedule".
+"schedule" - dicteaza felul in care se realizeaza distributia valorilor pentru indicele "i".
+firul de executie cu id-ul "0" este intotdeauna firul de executie master.
+exista tip de schedule: static - tipul default, balansare intre thread-uri.
+	"static, 2" - multimea este impartita in submultimi de cel putin cate 2 valori.
+	este util cand numarul de partitii nu e divizibil cu numarul de thread-uri disponibile.
+	"dinamic" - tip FIFO - urmatoarea valoare disponibila pentru iterator este asignata urmatorului fir de executie liber.
+	"dinamic, 2" - se distribuie dinamic submultimi de cate 2 valori din iterator.
+	"guided" - un caz particular de dinamic, unde putem controla durata unei singure iteratii de for.
+		este util pentru a[i] = functie(i), unde functie(int i) { for(... ceva < i ...) }.
+	"guided, 2" - la fiecare distributie se vor trimite cel putin submultimi de cate 2 elemente.
+
+
+functii de lucru cu mediul:
+	get_thread_num, get_num_threads, set_num_threads, etc.
