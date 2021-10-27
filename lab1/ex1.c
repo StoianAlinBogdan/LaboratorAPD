@@ -3,7 +3,7 @@
 
 int main()
 {
-    int tid;
+    int tid; //comentariu
 
 #pragma omp parallel private(tid)
     {
