@@ -1,0 +1,15 @@
+n = 2^d, d numarul de dimensiuni
+rank => d vecini
+fiecare nod necesita d biti pentru reprezentarea rang-ului
+
+
+0 - vecinii lui sunt: 000 complementat -> 001 (complementam fiecare bit pentru a 
+afla vecinul pe dimensiunea aceea: bit-ul 0 pentru vecinul pe dimensiunea 0, s.a.), 010, 100
+1 (001) - 000, 011, 101
+etc.
+
+hipercubul este o topologie de tip pur recursiva: oricare cub de dimensiune d, il pot descompune
+in cuburi de dimensiune d-1, iar oricate cuburi de tip d-1 pot fi recompuse in un hipercub de
+dimensiune d 
+
+transmiterea unui mesaj de  tip 1-la-toti (broadcast) se intampla in timp logaritmic pe hipercub.
