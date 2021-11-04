@@ -1,0 +1,2 @@
+valoarea de pe pozitia x in vectorul de indecsi = gradul nodului x + suma gradelor nodurilor precedente
+vectorul de muchii = vector de vectori, unde fiecare vector este format din vecinii nodului respectiv
